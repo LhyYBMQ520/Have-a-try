@@ -24,8 +24,9 @@
 python3 app.py
 ```
 即可运行后端。
+
 （注意：第一次或后续有新增图片后开启后端时会初始化一段时间，此时Pillow正在按预设压缩图片，压缩后的图片为80%质量的webp图像，保存在：  
-/static/compressed_images/  中。）
+/static/compressed_images 文件夹中。）
 
 5. 随后即可从 127.0.0.1 或 localhost:5000 或 公网（仅支持ipv4）访问网页。
 
