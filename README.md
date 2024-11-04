@@ -41,7 +41,8 @@ python3 app.py
 ```css
 /* 设置背景图片 */
 body {
-    background-image: url('/static/background/leaves.webp');      /* background/后的文件名 */
+    /* background/后的文件名 */
+    background-image: url('/static/background/leaves.webp');
 }
 ```
 
