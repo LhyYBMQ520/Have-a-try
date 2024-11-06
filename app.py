@@ -2,6 +2,9 @@ from flask import Flask, render_template, send_from_directory, request, abort
 import os
 from PIL import Image
 from apscheduler.schedulers.background import BackgroundScheduler
+import threading
+import sys
+import signal
 
 app = Flask(__name__)
 
@@ -96,5 +99,31 @@ def setup_scheduler():
 
 scheduler = setup_scheduler()
 
+# 创建一个事件标志用于通知线程退出
+exit_event = threading.Event()
+
+def run_ipv4():
+    app.run(host='0.0.0.0', port=5001, debug=True, threaded=True,use_reloader=False)
+
+def run_ipv6():
+    app.run(host='::', port=5001, debug=True, threaded=True,use_reloader=False)
+
+def signal_handler(sig, frame):
+    print("\nServer Stop Requested.")
+    exit_event.set()  # 设置退出标志，通知所有线程退出
+    sys.exit(0)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # 捕获 Ctrl+C (SIGINT) 信号
+    signal.signal(signal.SIGINT, signal_handler)
+    # 创建两个线程来分别运行 IPv4 和 IPv6
+    ipv4_thread = threading.Thread(target=run_ipv4)
+    ipv6_thread = threading.Thread(target=run_ipv6)
+
+    # 启动两个线程
+    ipv4_thread.start()
+    ipv6_thread.start()
+
+    # 等待线程完成
+    ipv4_thread.join()
+    ipv6_thread.join()
