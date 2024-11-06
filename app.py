@@ -5,8 +5,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import threading
 import sys
 import signal
+import yaml
 
 app = Flask(__name__)
+
+config=dict()
 
 # 从配置文件或环境变量中读取图片文件夹路径
 app.config['IMAGE_FOLDER'] = 'static/images'
@@ -97,23 +100,42 @@ def setup_scheduler():
     check_and_compress_images()  # Initial check at startup
     return scheduler
 
+default_config="""
+port: 5000
+"""
+
+def init_conf():
+    file=None
+    if list.count(os.listdir("."),"config.yml") == 0:
+        file=open("config.yml",mode='w+')
+        file.write(default_config)
+    else:
+        file=open("config.yml",mode='r')
+    #将文件指针重置到开头，方便后续读取文件
+    file.seek(0,0)
+    global config
+    config=yaml.safe_load(file.read())
+    file.close()
+
 scheduler = setup_scheduler()
 
 # 创建一个事件标志用于通知线程退出
 exit_event = threading.Event()
 
 def run_ipv4():
-    app.run(host='0.0.0.0', port=5001, debug=True, threaded=True,use_reloader=False)
+    app.run(host='0.0.0.0', port=config["port"], debug=True, threaded=True,use_reloader=False)
 
 def run_ipv6():
-    app.run(host='::', port=5001, debug=True, threaded=True,use_reloader=False)
+    app.run(host='::', port=config["port"], debug=True, threaded=True,use_reloader=False)
 
 def signal_handler(sig, frame):
     print("\nServer Stop Requested.")
     exit_event.set()  # 设置退出标志，通知所有线程退出
     sys.exit(0)
+    sys.exit(0)
 
 if __name__ == '__main__':
+    init_conf()
     # 捕获 Ctrl+C (SIGINT) 信号
     signal.signal(signal.SIGINT, signal_handler)
     # 创建两个线程来分别运行 IPv4 和 IPv6
@@ -127,3 +149,4 @@ if __name__ == '__main__':
     # 等待线程完成
     ipv4_thread.join()
     ipv6_thread.join()
+
