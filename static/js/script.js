@@ -1,6 +1,52 @@
 document.addEventListener("DOMContentLoaded", function() {
-    const lazyImages = document.querySelectorAll('.lazy-load');
+    render();
+    // 实现瀑布流布局
+    function createColumns(ele) {
+        let width = ele.offsetWidth;
+        let _column;
+        if (width >= 1200) {
+            _column = 5;
+        } else if (width < 1200 && width >= 992) {
+            _column = 4;
+        } else if (width < 992 && width >= 768) {
+            _column = 3;
+        } else if (width < 768) {
+            _column = 2;
+        } else {
+            _column = 1;
+        }
+        return _column;
+    }
 
+    function render() {
+        let _wrap = document.querySelector(".wrap");
+        let _column = createColumns(_wrap);
+        let _spacing = 10;
+        let _colWidth = (_wrap.offsetWidth - (_column - 1) * _spacing) / _column;
+        let _boxList = document.querySelectorAll(".box");
+        let _arr = [];
+
+        for (let i = 0; i < _boxList.length; i++) {
+            _boxList[i].style.width = _colWidth + "px";
+            if (i < _column) {
+                _arr.push(_boxList[i].offsetHeight);
+                _boxList[i].style.top = 0;
+                _boxList[i].style.left = (_colWidth + _spacing) * i + "px";
+            } else {
+                let min = Math.min(..._arr);
+                let index = _arr.indexOf(min);
+                _boxList[i].style.top = min + _spacing + "px";
+                _boxList[i].style.left = (_spacing + _colWidth) * index + "px";
+                _arr[index] += _boxList[i].offsetHeight + _spacing;
+            }
+        }
+    }
+
+    window.addEventListener("load", render);
+    window.addEventListener("resize", render);
+
+    // 图片懒加载
+    const lazyImages = document.querySelectorAll('.lazy-load');
     if ("IntersectionObserver" in window) {
         let lazyImageObserver = new IntersectionObserver(function(entries, observer) {
             entries.forEach(function(entry) {
@@ -8,13 +54,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     let lazyImage = entry.target;
                     lazyImage.src = lazyImage.dataset.src;
                     lazyImage.classList.remove('lazy-load');
-                    lazyImage.addEventListener('load', function() {
-                        // 当图片加载完成后，移除牛顿摆动画
-                        const cradle = lazyImage.nextElementSibling;
-                        cradle.style.opacity = 0;
-                        setTimeout(() => cradle.remove(), 500); // 渐变消失后移除
-                        lazyImageObserver.unobserve(lazyImage);
-                    });
+                    lazyImageObserver.unobserve(lazyImage);
                 }
             });
         });
@@ -27,9 +67,6 @@ document.addEventListener("DOMContentLoaded", function() {
         lazyImages.forEach(function(lazyImage) {
             lazyImage.src = lazyImage.dataset.src;
             lazyImage.classList.remove('lazy-load');
-            const cradle = lazyImage.nextElementSibling;
-            cradle.style.opacity = 0;
-            setTimeout(() => cradle.remove(), 500); // 渐变消失后移除
         });
     }
 
@@ -38,13 +75,10 @@ document.addEventListener("DOMContentLoaded", function() {
     paginationLinks.forEach(link => {
         link.addEventListener('click', function(event) {
             event.preventDefault();
-
             // 移除所有分页链接上的.current类
             paginationLinks.forEach(l => l.classList.remove('current'));
-
             // 在被点击的链接上添加.current类
             this.classList.add('current');
-
             // 重新定向到新的URL
             window.location.href = this.getAttribute('href');
         });
@@ -56,7 +90,6 @@ function openFullscreenImage(img) {
     const fullscreenImage = document.getElementById('fullscreen-image');
     const fullscreenImg = document.getElementById('fullscreen-img');
     const downloadLink = document.getElementById('download-link');
-
     // 使用 data-original 属性获取原图路径
     fullscreenImg.src = img.dataset.original;
     downloadLink.href = img.dataset.original;
