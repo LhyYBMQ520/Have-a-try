@@ -10,24 +10,16 @@
     <!-- 标题 -->
     <h1>Welcome to my 美图分享站</h1>
     <!-- 图片画廊容器 -->
-    <div class="gallery-container" id="gallery-container">
+    <div class="wrap" id="gallery-container">
         <!-- 循环渲染每张图片 -->
         {% for image in image_names %}
-            <div class="gallery-item">
-                <!-- 图片 -->
+            <div class="box">
                 <img src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" 
                      alt="{{ image }}" 
                      class="lazy-load" 
                      data-src="{{ url_for('serve_image', filename=image) }}" 
                      data-original="{{ url_for('serve_original', filename=image) }}" 
                      onclick="openFullscreenImage(this)">
-                <!-- 牛顿摆动画作为图片占位符 -->
-                <div class="newtons-cradle" id="newtons-cradle-{{ loop.index }}">
-                    <div class="newtons-cradle__dot"></div>
-                    <div class="newtons-cradle__dot"></div>
-                    <div class="newtons-cradle__dot"></div>
-                    <div class="newtons-cradle__dot"></div>
-                </div>
             </div>
         {% endfor %}
     </div>
