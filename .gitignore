@@ -1,6 +1,7 @@
-#os
+# os
 .DS_Store
 .vscode
+__pycache__
 
 # venv
 venv
@@ -8,3 +9,4 @@ config.yml
 
 # images
 static/images/test.jpg
+static/compressed_images/test.webp
