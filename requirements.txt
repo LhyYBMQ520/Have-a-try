@@ -1,5 +1,4 @@
 flask
 pillow
 APScheduler
-PyYaml
 gunicorn
