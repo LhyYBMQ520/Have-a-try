@@ -5,3 +5,6 @@
 # venv
 venv
 config.yml
+
+# images
+static/images/test.jpg
