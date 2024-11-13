@@ -29,6 +29,7 @@ h1 {
 .box {
     position: absolute;
     transition: left 0.5s, top 0.5s;
+    box-sizing: border-box;
 }
 
 .box img {
@@ -40,11 +41,19 @@ h1 {
     box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
     cursor: pointer;
 }
-
+.pagination-box{
+    position: fixed;
+    bottom:0 ;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
 .pagination {
     display: flex;
     justify-content: center;
     margin-top: 20px;
+    margin-bottom: 15px;
 }
 
 .pagination a, .pagination span {
@@ -55,13 +64,13 @@ h1 {
     color: #333;
     border: 1px solid #ccc;
     border-radius: 10px;
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.9);
     font-weight: bold;
     transition: background-color 0.2s ease-in-out;
 }
 
 .pagination a:hover, .pagination .current {
-    background-color: #d3d3d3;
+    background-color: #bebebe;
     color: #333;
     border-color: #333;
 }
