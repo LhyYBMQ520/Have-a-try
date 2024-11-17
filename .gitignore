@@ -1,0 +1,11 @@
+# os
+.DS_Store
+.vscode
+__pycache__
+
+# venv
+venv
+
+# images
+static/images/test.jpg
+static/compressed_images/test.webp
