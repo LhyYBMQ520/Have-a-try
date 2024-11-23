@@ -15,12 +15,6 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('waitress')
 logger.setLevel(logging.INFO)
-# 创建控制台处理器
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-# 创建访问日志格式化器
-access_formatter = logging.Formatter('%(asctime)s - %(client_ip)s - %(request_method)s %(request_url)s - %(status_code)s - Time Taken: %(elapsed_time)s')
-console_handler.setFormatter(access_formatter)
 
 # 配置图片文件夹路径
 app.config['IMAGE_FOLDER'] = 'static/images'  # 输入目录
