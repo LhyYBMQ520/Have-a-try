@@ -185,6 +185,24 @@ def init_conf():
     config=yaml.safe_load(file.read())
     file.close()
 
+def log_port_used_info(portstr:str):
+    if is_airplay_reciever_default_enabled_environment() is True and portstr == '5000':
+        logger.error("系统中的AirPlay Reciever（监听隔空播放服务）正在占用5000端口。请将config.yml中的port项配置为其他端口后再试。")
+        return
+    logger.error("端口"+portstr+"被占用！请检查"+portstr+"上是否已有其他TCP协议服务，或更换其他端口")
+
+def is_airplay_reciever_default_enabled_environment():
+    # 检查占用原因是否是macOS12+上的AirPlay Reciever
+    # 检测系统是否是 macOS
+    if platform.system() == "Darwin":
+        # 检测系统版本是否是 12.0 或以上
+        version = platform.mac_ver()[0]
+        major, minor, *_ = map(int, version.split("."))
+        if major >= 12:
+            return True
+    return False
+
+
 scheduler = setup_scheduler()
 
 if __name__ == '__main__':
@@ -196,12 +214,4 @@ if __name__ == '__main__':
 
     # 检查端口占用
     except OSError as e:
-        logger.error("端口"+portstr+"被占用！请检查"+portstr+"上是否已有其他TCP协议服务，或更换其他端口")
-        # 检查占用原因是否是macOS12+上的AirPlay Reciever
-        # 检测系统是否是 macOS
-        if platform.system() == "Darwin":
-            # 检测系统版本是否是 12.0 或以上
-            version = platform.mac_ver()[0]
-            major, minor, *_ = map(int, version.split("."))
-            if major >= 12:
-                logger.error("系统中的AirPlay Reciever（监听隔空播放服务）正在占用5000端口。请将config.yml中的port项配置为其他端口后再试。")
+        log_port_used_info(portstr)
