@@ -126,7 +126,7 @@ def index():
                    f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))]
 
     page = int(request.args.get('page', 1))
-    per_page = 60  # 每页显示 60 张图片
+    per_page = config.get("per_page",60)  # 每页显示 60 张图片
 
     total_pages = (len(image_names) + per_page - 1) // per_page
 
