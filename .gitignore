@@ -7,5 +7,8 @@ __pycache__
 venv
 
 # images
-static/images/test.jpg
-static/compressed_images/test.webp
+static/images/
+static/compressed_images/
+
+# config
+config.yml

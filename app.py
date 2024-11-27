@@ -2,6 +2,8 @@ import hashlib
 import logging
 import os
 from datetime import datetime
+import platform
+import yaml
 
 from PIL import Image
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -165,8 +167,42 @@ def setup_scheduler():
     check_and_compress_images()  # 应用启动时立即执行一次图片压缩检查
     return scheduler
 
+default_config="""
+port: 5000
+bind_ips: 
+  - '*'
+"""
+
+def init_conf():
+    file=None
+    if list.count(os.listdir("."),"config.yml") == 0:
+        file=open("config.yml",mode='w+')
+        file.write(default_config)
+    else:
+        file=open("config.yml",mode='r')
+    #将文件指针重置到开头，方便后续读取文件
+    file.seek(0,0)
+    global config
+    config=yaml.safe_load(file.read())
+    file.close()
 
 scheduler = setup_scheduler()
 
 if __name__ == '__main__':
-    serve(app, listen='*:5000')
+    init_conf()
+    for ip_address in config.get("bind_ips",['*']):
+        portstr=str(config.get("port",5000))
+        try:
+            serve(app, listen=ip_address+':'+portstr)
+            
+        # 检查端口占用
+        except OSError as e:
+            logger.error("端口"+portstr+"被占用！请检查"+portstr+"上是否已有其他TCP协议服务，或更换其他端口")
+            # 检查占用原因是否是macOS12+上的AirPlay Reciever
+            # 检测系统是否是 macOS
+            if platform.system() == "Darwin":
+                # 检测系统版本是否是 12.0 或以上
+                version = platform.mac_ver()[0]
+                major, minor, *_ = map(int, version.split("."))
+                if major >= 12:
+                    logger.error("系统中的AirPlay Reciever（监听隔空播放服务）正在占用5000端口。请将config.yml中的port项配置为其他端口后再试。")
