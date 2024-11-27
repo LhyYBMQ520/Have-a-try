@@ -7,6 +7,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             render();
             isInitialRender = false;
+            //初始加载时，开始懒加载逻辑
+            start_lazy_load()
         }
     });
     // 窗口大小改变布局调整
@@ -61,39 +63,40 @@ document.addEventListener("DOMContentLoaded", function () {
     //window.addEventListener("load", render);
     //window.addEventListener("resize", render);
 
-    // 图片懒加载
-    const lazyImages = document.querySelectorAll('.lazy-load');
-    if ("IntersectionObserver" in window) {
-        let lazyImageObserver = new IntersectionObserver(function (entries, observer) {
-            entries.forEach(function (entry) {
-                if (entry.isIntersecting) {
-                    let lazyImage = entry.target;
-                    lazyImage.src = lazyImage.dataset.src;
-                    lazyImage.onload = function () {
-                        // 图片加载完成后调用render函数重新计算布局
-                        render();
-                    };
-                    lazyImage.classList.remove('lazy-load');
-                    lazyImageObserver.unobserve(lazyImage);
-                }
+    function start_lazy_load(){
+        // 图片懒加载
+        const lazyImages = document.querySelectorAll('.lazy-load');
+        if ("IntersectionObserver" in window) {
+            let lazyImageObserver = new IntersectionObserver(function (entries, observer) {
+                entries.forEach(function (entry) {
+                    if (entry.isIntersecting) {
+                        let lazyImage = entry.target;
+                        lazyImage.src = lazyImage.dataset.src;
+                        lazyImage.onload = function () {
+                            // 图片加载完成后调用render函数重新计算布局
+                            render();
+                        };
+                        lazyImage.classList.remove('lazy-load');
+                        lazyImageObserver.unobserve(lazyImage);
+                    }
+                });
             });
-        });
 
-        lazyImages.forEach(function (lazyImage) {
-            lazyImageObserver.observe(lazyImage);
-        });
-    } else {
-        // 如果不支持 Intersection Observer，则直接加载所有图片
-        lazyImages.forEach(function (lazyImage) {
-            lazyImage.src = lazyImage.dataset.src;
-            lazyImage.onload = function () {
-                // 图片加载完成后调用render函数重新计算布局
-                render();
-            };
-            lazyImage.classList.remove('lazy-load');
-        });
+            lazyImages.forEach(function (lazyImage) {
+                lazyImageObserver.observe(lazyImage);
+            });
+        } else {
+            // 如果不支持 Intersection Observer，则直接加载所有图片
+            lazyImages.forEach(function (lazyImage) {
+                lazyImage.src = lazyImage.dataset.src;
+                lazyImage.onload = function () {
+                    // 图片加载完成后调用render函数重新计算布局
+                    render();
+                };
+                lazyImage.classList.remove('lazy-load');
+            });
+        }
     }
-
 
     // 处理分页点击事件
     const paginationLinks = document.querySelectorAll('.pagination a');
