@@ -5,23 +5,19 @@
     <title>My Image Gallery</title>
     <!-- 引入静态文件夹中的 CSS 样式表 -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+//用jinja2从后端取出图片列表
+//请勿将此部分代码移动至单独的js文件！此部分代码中有jinja2表达式，只能在html文件中被识别
+const imageFileNames=JSON.parse("[{% for image in image_names %}\"{{image}}\",{% endfor %}".slice(0,-1)+"]")
+
+    </script>
 </head>
 <body>
     <!-- 标题 -->
     <h1>Welcome to my 美图分享站</h1>
     <!-- 图片画廊容器 -->
     <div class="wrap" id="gallery-container">
-        <!-- 循环渲染每张图片 -->
-        {% for image in image_names %}
-            <div class="box">
-                <img src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" 
-                     alt="{{ image }}" 
-                     class="lazy-load" 
-                     data-src="{{ url_for('serve_image', filename=image) }}" 
-                     data-original="{{ url_for('serve_original', filename=image) }}" 
-                     onclick="openFullscreenImage(this)">
-            </div>
-        {% endfor %}
+
     </div>
  <!-- 分页导航 -->
    <div class="pagination-box">
