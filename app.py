@@ -28,12 +28,10 @@ formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s',
 # 设置handler的Formatter
 default_handler.setFormatter(formatter)
 
-# 配置图片文件夹路径
-app.config['IMAGE_FOLDER'] = 'static/images'  # 输入目录
-app.config['COMPRESSED_FOLDER'] = 'static/compressed_images'  # Webp输出目录
-
 # 全局变量
 image_data = {}  # 原始文件名与压缩文件名的映射
+
+# 配置文件
 
 config:dict=dict()
 
@@ -54,6 +52,14 @@ def init_conf():
     global config
     config=yaml.safe_load(file.read())
     file.close()
+
+init_conf()
+
+# 配置图片文件夹路径
+app.config['IMAGE_FOLDER'] = config.get("image_folder","static/images")  # 输入目录
+app.config['COMPRESSED_FOLDER'] = 'static/compressed_images'  # Webp输出目录
+
+
 
 
 def generate_hashed_filename(original_path):
@@ -282,7 +288,6 @@ def is_airplay_reciever_default_enabled_environment():
 scheduler = setup_scheduler()
 
 if __name__ == '__main__':
-    init_conf()
     ip_address=config.get("bind_ip",['*'])
     portstr=str(config.get("port",5000))
     try:
