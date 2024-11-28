@@ -9,6 +9,8 @@ from PIL import Image,ImageSequence
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, request, render_template, send_from_directory, abort
 from waitress import serve
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -173,14 +175,32 @@ def check_and_compress_images():
                 else:
                     os.remove(os.path.join(compress_folder, filename))
 
-    # 压缩新文件
-    for filename in os.listdir(app.config['IMAGE_FOLDER']):
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-            file_path = os.path.join(app.config['IMAGE_FOLDER'], filename)
-            hashed_filename = generate_hashed_filename(file_path)
-            compress_path = os.path.join(compress_folder, hashed_filename)
-            if not os.path.exists(compress_path):
-                compress_image(file_path, compress_path)
+    # 创建一个进程池
+    with ProcessPoolExecutor() as executor:
+        # 获取所有待处理的文件路径
+        files_to_compress = [
+            os.path.join(app.config['IMAGE_FOLDER'], filename)
+            for filename in os.listdir(app.config['IMAGE_FOLDER'])
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+        ]
+        
+        # 为每个文件生成对应的压缩路径
+        compress_paths = [
+            os.path.join(compress_folder, generate_hashed_filename(file_path))
+            for file_path in files_to_compress
+        ]
+
+        # 使用 `partial` 函数避免重复传递相同参数（`compress_folder`）
+        compress_func = partial(compress_image_in_process, compress_folder)
+
+        # 提交所有的压缩任务
+        executor.map(compress_func, files_to_compress, compress_paths)
+
+
+def compress_image_in_process(compress_folder, file_path, compress_path):
+    """这个函数会被多进程执行，负责压缩图片"""
+    if not os.path.exists(compress_path):
+        compress_image(file_path, compress_path)
 
 
 @app.before_request
@@ -285,9 +305,10 @@ def is_airplay_reciever_default_enabled_environment():
     return False
 
 
-scheduler = setup_scheduler()
+
 
 if __name__ == '__main__':
+    scheduler = setup_scheduler()
     ip_address=config.get("bind_ip",['*'])
     portstr=str(config.get("port",5000))
     try:
