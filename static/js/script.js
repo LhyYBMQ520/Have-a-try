@@ -128,4 +128,6 @@ function openFullscreenImage(img) {
 function closeFullscreenImage() {
     const fullscreenImage = document.getElementById('fullscreen-image');
     fullscreenImage.style.display = 'none';
+    const fullscreenImg = document.getElementById('fullscreen-img');
+    fullscreenImg.src = "";
 }
