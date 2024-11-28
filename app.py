@@ -5,7 +5,7 @@ from datetime import datetime
 import platform
 import yaml
 
-from PIL import Image
+from PIL import Image,ImageSequence
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, request, render_template, send_from_directory, abort
 from waitress import serve
@@ -18,12 +18,42 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('waitress')
 logger.setLevel(logging.INFO)
 
+# 让日志显示日期
+# 获取默认的handler
+default_handler = logging.root.handlers[0]
+
+# 创建一个新的Formatter，设置日志格式
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+# 设置handler的Formatter
+default_handler.setFormatter(formatter)
+
 # 配置图片文件夹路径
 app.config['IMAGE_FOLDER'] = 'static/images'  # 输入目录
 app.config['COMPRESSED_FOLDER'] = 'static/compressed_images'  # Webp输出目录
 
 # 全局变量
 image_data = {}  # 原始文件名与压缩文件名的映射
+
+config:dict=dict()
+
+default_config="""
+port: 5000
+bind_ip: '*'
+"""
+
+def init_conf():
+    file=None
+    if list.count(os.listdir("."),"config.yml") == 0:
+        file=open("config.yml",mode='w+')
+        file.write(default_config)
+    else:
+        file=open("config.yml",mode='r')
+    #将文件指针重置到开头，方便后续读取文件
+    file.seek(0,0)
+    global config
+    config=yaml.safe_load(file.read())
+    file.close()
 
 
 def generate_hashed_filename(original_path):
@@ -41,19 +71,81 @@ def compress_image(input_path, output_path=None, quality=80):
             app.config['COMPRESSED_FOLDER'],
             generate_hashed_filename(input_path)
         )
-    with Image.open(input_path) as img:
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        save_as_webp(img, output_path, quality)
+    with Image.open(input_path) as img_pointer:
+        # 判断是否为动图
+        if img_pointer.info.get('duration') is not None and config.get("preview_anime",True):
+            compress_anime(img_pointer, output_path, quality)
+        else:
+            compress_static(img_pointer,output_path,quality)
+
+def compress_static(img_pointer:Image.Image,output_path:str,quality:int):
+    """压缩静态图片如普通图片或单帧GIF等"""
+    if img_pointer.mode != 'RGB':
+        img_pointer = img_pointer.convert('RGB')
+    save_as_webp(img_pointer, output_path, quality)
+
+def compress_anime(img_pointer:Image.Image, output_path:str=None, quality=20):
+    max_size:tuple=(config.get("anime_max_size",200),config.get("anime_max_size",200))
+    """压缩动态GIF等动画图片文件，保持所有帧并降低质量和分辨率"""
+    # 获取GIF的持续时间
+    duration = img_pointer.info.get('duration')
+
+    old_frames=0
+    # 保存每一帧的图像
+    frames:list[Image.Image] = []
+    for frame in ImageSequence.Iterator(img_pointer):
+        old_frames+=1
 
 
-def save_as_webp(img, output_path, quality=80):
+        # 为了计算新的尺寸，先记录原始的纵横比
+        original_width, original_height = frame.size
+        aspect_ratio = original_width / original_height
+
+        # 先压缩每一帧
+        frame = frame.convert("RGBA")  # 转换为RGBA模式，确保支持透明背景
+        frame = frame.resize(max_size, Image.Resampling.LANCZOS)  # 重新调整大小（如有需要）
+
+        
+        # 计算缩放后的宽度和高度
+        if original_width > original_height:
+            new_width = min(original_width, max_size[0])
+            new_height = int(new_width / aspect_ratio)
+        else:
+            new_height = min(original_height, max_size[1])
+            new_width = int(new_height * aspect_ratio)
+
+        
+        # 重新调整大小，保持纵横比
+        frame = frame.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # 压缩每一帧的质量，可以使用不同的压缩方法来调整图像质量
+        frame = frame.convert("P", palette=Image.ADAPTIVE, colors=256)  # 降低颜色深度
+
+        frames.append(frame)
+    # 保存新的GIF文件，保留所有帧
+    save_as_webp(frames[0],output_path,quality,{
+        "frames":frames,
+        "duration":duration
+    })
+
+
+def save_as_webp(img:Image.Image, output_path:str, quality=80,anime_data:dict=None):
     """保存为 WebP 格式，限制最大尺寸"""
     max_dim = 16383  # WebP 的最大尺寸限制
     if img.size[0] > max_dim or img.size[1] > max_dim:
         scale = min(max_dim / img.size[0], max_dim / img.size[1])
         img = img.resize((int(img.size[0] * scale), int(img.size[1] * scale)), Image.Resampling.LANCZOS)
-    img.save(output_path, 'WEBP', quality=quality)
+    if anime_data is None:
+        img.save(output_path, 'WEBP', quality=quality)
+    else:
+        anime_data["frames"][0].save(
+            output_path, 'WEBP', quality=quality,
+            save_all=True,
+            loop=0,
+            optimize=False,
+            append_images=anime_data["frames"][1:],  # 添加剩余帧
+            duration=anime_data["duration"]  # 使用获取的持续时间
+        )
 
 
 def check_and_compress_images():
@@ -167,23 +259,7 @@ def setup_scheduler():
     check_and_compress_images()  # 应用启动时立即执行一次图片压缩检查
     return scheduler
 
-default_config="""
-port: 5000
-bind_ip: '*'
-"""
 
-def init_conf():
-    file=None
-    if list.count(os.listdir("."),"config.yml") == 0:
-        file=open("config.yml",mode='w+')
-        file.write(default_config)
-    else:
-        file=open("config.yml",mode='r')
-    #将文件指针重置到开头，方便后续读取文件
-    file.seek(0,0)
-    global config
-    config=yaml.safe_load(file.read())
-    file.close()
 
 def log_port_used_info(portstr:str):
     if is_airplay_reciever_default_enabled_environment() is True and portstr == '5000':
