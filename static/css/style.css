@@ -29,6 +29,7 @@ h1 {
 .box {
     position: absolute;
     transition: left 0.5s, top 0.5s;
+    box-sizing: border-box;
 }
 
 .box img {
@@ -41,10 +42,20 @@ h1 {
     cursor: pointer;
 }
 
+.pagination-box{
+    position: fixed;
+    bottom:0 ;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
 .pagination {
     display: flex;
     justify-content: center;
     margin-top: 20px;
+    margin-bottom: 15px;
 }
 
 .pagination a, .pagination span {
@@ -55,13 +66,13 @@ h1 {
     color: #333;
     border: 1px solid #ccc;
     border-radius: 10px;
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.9);
     font-weight: bold;
     transition: background-color 0.2s ease-in-out;
 }
 
 .pagination a:hover, .pagination .current {
-    background-color: #d3d3d3;
+    background-color: #bebebe;
     color: #333;
     border-color: #333;
 }
@@ -100,8 +111,8 @@ h1 {
 }
 
 .fullscreen-image .download-button {
-    top: 85px; /* 调整垂直位置 */
-    right: 8px; /* 调整水平位置 */
+    top: 85px; /* 调整下载按钮的垂直位置 */
+    right: 8px; /* 调整下载按钮的水平位置 */
 }
 
 .fullscreen-image .close-button:hover, .fullscreen-image .download-button:hover {
@@ -154,7 +165,7 @@ h1 {
     transform: translateX(-50%) rotate(-45deg);
 }
 
-a {
+a { /* 下载按钮样式 */
   color: rgba(255, 255, 255, 0.692);
   padding: 10px 15px;
   display: flex;

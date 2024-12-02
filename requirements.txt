@@ -1,5 +1,5 @@
 flask
 pillow
 APScheduler
+Waitress
 PyYaml
-gunicorn

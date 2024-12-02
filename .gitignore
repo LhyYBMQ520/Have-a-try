@@ -5,8 +5,10 @@ __pycache__
 
 # venv
 venv
-config.yml
 
 # images
 static/images/
 static/compressed_images/
+
+# config
+config.yml

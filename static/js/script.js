@@ -117,8 +117,8 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    window.addEventListener("load", render);
-    window.addEventListener("resize", render);
+    //window.addEventListener("load", render);
+    //window.addEventListener("resize", render);
 
     function refresh_lazy_load(){
         // 图片懒加载
@@ -142,31 +142,35 @@ document.addEventListener("DOMContentLoaded", function () {
                 }});
             });
 
-        lazyImages.forEach(function(lazyImage) {
-            lazyImageObserver.observe(lazyImage);
-        });
+            lazyImages.forEach(function (lazyImage) {
+                lazyImageObserver.observe(lazyImage);
+            });
         } else {
             // 如果不支持 Intersection Observer，则直接加载所有图片
-            lazyImages.forEach(function(lazyImage) {
+            lazyImages.forEach(function (lazyImage) {
                 lazyImage.src = lazyImage.dataset.src;
+                lazyImage.onload = function () {
+                    // 图片加载完成后调用render函数重新计算布局
+                    render();
+                };
                 lazyImage.classList.remove('lazy-load');
             });
         }
-
-        // 处理分页点击事件
-        const paginationLinks = document.querySelectorAll('.pagination a');
-        paginationLinks.forEach(link => {
-            link.addEventListener('click', function(event) {
-                event.preventDefault();
-                // 移除所有分页链接上的.current类
-                paginationLinks.forEach(l => l.classList.remove('current'));
-                // 在被点击的链接上添加.current类
-                this.classList.add('current');
-                // 重新定向到新的URL
-                window.location.href = this.getAttribute('href');
-            });
-        });
     }
+
+    // 处理分页点击事件
+    const paginationLinks = document.querySelectorAll('.pagination a');
+    paginationLinks.forEach(link => {
+        link.addEventListener('click', function (event) {
+            event.preventDefault();
+            // 移除所有分页链接上的.current类
+            paginationLinks.forEach(l => l.classList.remove('current'));
+            // 在被点击的链接上添加.current类
+            this.classList.add('current');
+            // 重新定向到新的URL
+            window.location.href = this.getAttribute('href');
+        });
+    });
 
 });
 
@@ -185,4 +189,6 @@ function openFullscreenImage(img) {
 function closeFullscreenImage() {
     const fullscreenImage = document.getElementById('fullscreen-image');
     fullscreenImage.style.display = 'none';
+    const fullscreenImg = document.getElementById('fullscreen-img');
+    fullscreenImg.src = "";
 }

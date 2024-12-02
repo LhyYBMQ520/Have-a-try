@@ -19,14 +19,14 @@ const imageFileNames=JSON.parse("[{% for image in image_names %}\"{{image}}\",{%
     <div class="wrap" id="gallery-container">
 
     </div>
-
-    <!-- 分页导航 -->
-    <div class="pagination">
+ <!-- 分页导航 -->
+   <div class="pagination-box">
+        <div class="pagination">
         {% if page > 1 %}
             <!-- 上一页链接 -->
             <a href="?page={{ page - 1 }}">上一页</a>
         {% endif %}
-        
+
         <!-- 循环生成每一页的链接 -->
         {% for p in range(1, total_pages + 1) %}
             {% if p == page %}
@@ -36,21 +36,22 @@ const imageFileNames=JSON.parse("[{% for image in image_names %}\"{{image}}\",{%
                 <a href="?page={{ p }}">{{ p }}</a>
             {% endif %}
         {% endfor %}
-        
+
         {% if page < total_pages %}
             <!-- 下一页链接 -->
             <a href="?page={{ page + 1 }}">下一页</a>
         {% endif %}
     </div>
-
+   </div>
     <!-- 全屏显示图片的模态框 -->
     <div class="fullscreen-image" id="fullscreen-image" style="display: none;">
         <img id="fullscreen-img" src="" alt="Fullscreen Image">
-        <!-- 新的关闭按钮 -->
+        <!-- 关闭按钮 -->
         <button class="button" onclick="closeFullscreenImage()">
             <span class="X"></span>
             <span class="Y"></span>
         </button>
+        <!-- 下载按钮 -->
         <a class="download-button" id="download-link" href="#" download>
             <svg
                 viewBox="0 0 256 256"

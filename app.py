@@ -1,112 +1,45 @@
-from flask import Flask, render_template, send_from_directory, request, abort
+import hashlib
+import logging
 import os
-from PIL import Image
-from apscheduler.schedulers.background import BackgroundScheduler
-import threading
-import sys
-import signal
+from datetime import datetime
+import platform
 import yaml
-import subprocess
-import ipaddress
 
+from PIL import Image,ImageSequence
+from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Flask, request, render_template, send_from_directory, abort
+from waitress import serve
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+
+# 初始化Flask应用
 app = Flask(__name__)
 
-config=dict()
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('waitress')
+logger.setLevel(logging.INFO)
 
-# 从配置文件或环境变量中读取图片文件夹路径
-app.config['IMAGE_FOLDER'] = 'static/images'
-app.config['COMPRESSED_FOLDER'] = 'static/compressed_images'
+# 让日志显示日期
+# 获取默认的handler
+default_handler = logging.root.handlers[0]
 
-def compress_image(input_path, output_path, quality=80):
-    with Image.open(input_path) as img:
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        # 保存为 WebP 格式，质量为 80
-        save_as_webp(img, output_path, quality)
+# 创建一个新的Formatter，设置日志格式
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-def save_as_webp(img, output_path, quality=80):
-    max_dim = 16383  # WebP的最大尺寸限制
-    # 检查图片是否超过WebP的最大尺寸限制
-    if img.size[0] > max_dim or img.size[1] > max_dim:
-        # 计算缩放比例
-        scale = min(max_dim / img.size[0], max_dim / img.size[1])
-        # 缩放图片
-        img = img.resize((int(img.size[0] * scale), int(img.size[1] * scale)), Image.Resampling.LANCZOS)
-    # 保存为WebP格式
-    img.save(output_path, 'WEBP', quality=quality)
+# 设置handler的Formatter
+default_handler.setFormatter(formatter)
 
-def check_and_compress_images():
-    compress_folder = app.config['COMPRESSED_FOLDER']
-    if not os.path.exists(compress_folder):
-        os.makedirs(compress_folder)
+# 全局变量
+image_data = {}  # 原始文件名与压缩文件名的映射
 
-    # 检查压缩文件夹中的每个文件是否存在对应的原图
-    for filename in os.listdir(compress_folder):
-        if filename.lower().endswith(('.webp',)):
-            original_filename = os.path.splitext(filename)[0]
-            original_path = os.path.join(app.config['IMAGE_FOLDER'], original_filename + '.png')  # 假设原始文件是png格式
-            if not os.path.exists(original_path):
-                # 尝试不同的原始文件扩展名
-                for ext in ['.png', '.jpg', '.jpeg', '.gif']:
-                    original_path = os.path.join(app.config['IMAGE_FOLDER'], original_filename + ext)
-                    if os.path.exists(original_path):
-                        break
-                else:  # 如果没有找到对应的原图
-                    os.remove(os.path.join(compress_folder, filename))
+# 配置文件
 
-    # 压缩新的或修改过的图片
-    for filename in os.listdir(app.config['IMAGE_FOLDER']):
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            file_path = os.path.join(app.config['IMAGE_FOLDER'], filename)
-            compress_path = os.path.join(compress_folder, os.path.splitext(filename)[0] + '.webp')
-            if not os.path.exists(compress_path):
-                compress_image(file_path, compress_path)
-
-@app.route('/')
-def index():
-    image_folder = app.config['IMAGE_FOLDER']
-    image_names = [f for f in os.listdir(image_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))]
-    
-    page = int(request.args.get('page', 1))
-    per_page = 60  # 每页显示60张图片
-    
-    total_pages = (len(image_names) + per_page - 1) // per_page
-    
-    start_index = (page - 1) * per_page
-    end_index = start_index + per_page
-    images_on_page = image_names[start_index:end_index]
-    
-    return render_template('index.html', image_names=images_on_page, page=page, total_pages=total_pages)
-
-@app.route('/image/<filename>')
-def serve_image(filename):
-    compress_folder = app.config['COMPRESSED_FOLDER']
-    compress_path = os.path.join(compress_folder, os.path.splitext(filename)[0] + '.webp')
-    if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-        abort(400, description="Invalid image file extension.")
-    if os.path.exists(compress_path):
-        return send_from_directory(compress_folder, os.path.splitext(filename)[0] + '.webp')
-    else:
-        return send_from_directory(app.config['IMAGE_FOLDER'], filename)
-
-@app.route('/original/<filename>')
-def serve_original(filename):
-    if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-        abort(400, description="Invalid image file extension.")
-    return send_from_directory(app.config['IMAGE_FOLDER'], filename)
-
-def setup_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(check_and_compress_images, 'interval', hours=1)
-    scheduler.start()
-    check_and_compress_images()  # Initial check at startup
-    return scheduler
+config:dict=dict()
 
 default_config="""
 port: 5000
-bind_ips: 
-  - '0.0.0.0'
-  - '::'
+bind_ip: '*'
 """
 
 def init_conf():
@@ -122,97 +55,265 @@ def init_conf():
     config=yaml.safe_load(file.read())
     file.close()
 
-scheduler = setup_scheduler()
+init_conf()
+
+# 配置图片文件夹路径
+app.config['IMAGE_FOLDER'] = config.get("image_folder","static/images")  # 输入目录
+app.config['COMPRESSED_FOLDER'] = 'static/compressed_images'  # Webp输出目录
 
 
 
-# 创建一个事件标志用于通知线程退出
-# exit_event = threading.Event()
 
-def run_ipv4():
-    app.run(host=config.get("bind_ips","0.0.0.0"), port=config.get("port",5000), debug=True, threaded=True,use_reloader=False)
+def generate_hashed_filename(original_path):
+    """基于文件内容生成哈希值文件名"""
+    with open(original_path, 'rb') as f:
+        file_hash = hashlib.md5(f.read()).hexdigest()[:4]  # MD5 哈希值前四位
+    base_name = os.path.splitext(os.path.basename(original_path))[0]
+    return f"{base_name}_{file_hash}.webp"
 
-def run_ipv6():
-    app.run(host='::', port=config["port"], debug=True, threaded=True,use_reloader=False)
 
-def interactive_subprocess(cmd:list[str]):
-    # 启动一个子进程，执行 shell 命令（例如 bash）
-    process = subprocess.Popen(
-        cmd,  # 启动一个 Bash shell
-        stdin=subprocess.PIPE,  # 允许向子进程传递输入
-        stdout=subprocess.PIPE,  # 捕获子进程输出
-        stderr=subprocess.PIPE,  # 捕获子进程错误
-        text=True,  # 使输入输出为字符串（非字节）
-        bufsize=1,  # 行缓冲模式
-        universal_newlines=True
+def compress_image(input_path, output_path=None, quality=80):
+    """压缩图片并保存为指定路径"""
+    if output_path is None:  # 如果没有指定输出路径，自动生成
+        output_path = os.path.join(
+            app.config['COMPRESSED_FOLDER'],
+            generate_hashed_filename(input_path)
+        )
+    with Image.open(input_path) as img_pointer:
+        # 判断是否为动图
+        if img_pointer.info.get('duration') is not None and config.get("preview_anime",True):
+            compress_anime(img_pointer, output_path, quality)
+        else:
+            compress_static(img_pointer,output_path,quality)
+
+def compress_static(img_pointer:Image.Image,output_path:str,quality:int):
+    """压缩静态图片如普通图片或单帧GIF等"""
+    if img_pointer.mode != 'RGB':
+        img_pointer = img_pointer.convert('RGB')
+    save_as_webp(img_pointer, output_path, quality)
+
+def compress_anime(img_pointer:Image.Image, output_path:str=None, quality=20):
+    max_size:tuple=(config.get("anime_max_size",200),config.get("anime_max_size",200))
+    """压缩动态GIF等动画图片文件，保持所有帧并降低质量和分辨率"""
+    # 获取GIF的持续时间
+    duration = img_pointer.info.get('duration')
+
+    old_frames=0
+    # 保存每一帧的图像
+    frames:list[Image.Image] = []
+    for frame in ImageSequence.Iterator(img_pointer):
+        old_frames+=1
+
+
+        # 为了计算新的尺寸，先记录原始的纵横比
+        original_width, original_height = frame.size
+        aspect_ratio = original_width / original_height
+
+        # 先压缩每一帧
+        frame = frame.convert("RGBA")  # 转换为RGBA模式，确保支持透明背景
+        frame = frame.resize(max_size, Image.Resampling.LANCZOS)  # 重新调整大小（如有需要）
+
+        
+        # 计算缩放后的宽度和高度
+        if original_width > original_height:
+            new_width = min(original_width, max_size[0])
+            new_height = int(new_width / aspect_ratio)
+        else:
+            new_height = min(original_height, max_size[1])
+            new_width = int(new_height * aspect_ratio)
+
+        
+        # 重新调整大小，保持纵横比
+        frame = frame.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # 压缩每一帧的质量，可以使用不同的压缩方法来调整图像质量
+        frame = frame.convert("P", palette=Image.ADAPTIVE, colors=256)  # 降低颜色深度
+
+        frames.append(frame)
+    # 保存新的GIF文件，保留所有帧
+    save_as_webp(frames[0],output_path,quality,{
+        "frames":frames,
+        "duration":duration
+    })
+
+
+def save_as_webp(img:Image.Image, output_path:str, quality=80,anime_data:dict=None):
+    """保存为 WebP 格式，限制最大尺寸"""
+    max_dim = 16383  # WebP 的最大尺寸限制
+    if img.size[0] > max_dim or img.size[1] > max_dim:
+        scale = min(max_dim / img.size[0], max_dim / img.size[1])
+        img = img.resize((int(img.size[0] * scale), int(img.size[1] * scale)), Image.Resampling.LANCZOS)
+    if anime_data is None:
+        img.save(output_path, 'WEBP', quality=quality)
+    else:
+        anime_data["frames"][0].save(
+            output_path, 'WEBP', quality=quality,
+            save_all=True,
+            loop=0,
+            optimize=False,
+            append_images=anime_data["frames"][1:],  # 添加剩余帧
+            duration=anime_data["duration"]  # 使用获取的持续时间
+        )
+
+
+def check_and_compress_images():
+    """检查和压缩图片"""
+    compress_folder = app.config['COMPRESSED_FOLDER']
+    if not os.path.exists(compress_folder):
+        os.makedirs(compress_folder)
+
+    # 删除多余的压缩文件
+    for filename in os.listdir(compress_folder):
+        if filename.lower().endswith('.webp'):
+            original_filename = '_'.join(filename.split('_')[:-1])  # 去掉哈希部分
+            original_path = os.path.join(app.config['IMAGE_FOLDER'], original_filename + '.png')
+            if not os.path.exists(original_path):
+                for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp']:
+                    original_path = os.path.join(app.config['IMAGE_FOLDER'], original_filename + ext)
+                    if os.path.exists(original_path):
+                        break
+                else:
+                    os.remove(os.path.join(compress_folder, filename))
+
+    # 创建一个进程池
+    with ProcessPoolExecutor() as executor:
+        # 获取所有待处理的文件路径
+        files_to_compress = [
+            os.path.join(app.config['IMAGE_FOLDER'], filename)
+            for filename in os.listdir(app.config['IMAGE_FOLDER'])
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+        ]
+        
+        # 为每个文件生成对应的压缩路径
+        compress_paths = [
+            os.path.join(compress_folder, generate_hashed_filename(file_path))
+            for file_path in files_to_compress
+        ]
+
+        # 使用 `partial` 函数避免重复传递相同参数（`compress_folder`）
+        compress_func = partial(compress_image_in_process, compress_folder)
+
+        # 提交所有的压缩任务
+        executor.map(compress_func, files_to_compress, compress_paths)
+
+
+def compress_image_in_process(compress_folder, file_path, compress_path):
+    """这个函数会被多进程执行，负责压缩图片"""
+    if not os.path.exists(compress_path):
+        compress_image(file_path, compress_path)
+
+
+@app.before_request
+def before_request():
+    # 获取请求开始时间
+    request.start_time = datetime.now()
+    # 初始化 image_data
+    global image_data
+    image_folder = app.config['IMAGE_FOLDER']
+    image_data = {
+        image_name: generate_hashed_filename(os.path.join(image_folder, image_name))
+        for image_name in os.listdir(image_folder)
+        if image_name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+    }
+
+
+@app.after_request
+def log_response_info(response):
+    """记录响应日志"""
+    elapsed_time = datetime.now() - request.start_time
+    log_message = (
+        f"IP: {request.remote_addr} | Method: {request.method} | URL: {request.url} "
+        f"| Status Code: {response.status_code} | Time Taken: {elapsed_time.total_seconds():.4f}s"
     )
-
-    # 循环读取用户输入并传递给子进程，同时显示子进程的输出
-    while True:
-        try:
-            user_input = input("")
-
-            # stop命令关闭服务器
-            if user_input.lower() == 'stop':
-                print("Server Stop Requested.")
-                os.kill(process.pid, signal.SIGINT)
-                break
-
-            # 将用户输入发送到子进程的 stdin
-            process.stdin.write(user_input + "\n")
-            process.stdin.flush()  # 确保输入被及时传递
-
-            # 从子进程的 stdout 获取输出
-            stdout_output = process.stdout.readline()
-            if stdout_output:
-                print(stdout_output, end='')
-
-            # 从子进程的 stderr 获取错误输出
-            stderr_output = process.stderr.readline()
-            if stderr_output:
-                print(stderr_output, end='')
-
-        except KeyboardInterrupt:
-            break
-
-    # 等待子进程完成
-    process.stdin.close()
-    process.wait()
+    # 使用 extra 参数传递信息
+    logger.info(log_message, extra={
+        'client_ip': request.remote_addr,
+        'request_method': request.method,
+        'request_url': request.url,
+        'status_code': response.status_code,
+        'elapsed_time': elapsed_time.total_seconds()
+    })
+    return response
 
 
-"""
-def signal_handler(sig, frame):
-    print("\nServer Stop Requested.")
-    exit_event.set()  # 设置退出标志，通知所有线程退出
-    sys.exit(0)
-    sys.exit(0)
-"""
+@app.route('/')
+def index():
+    """主页，显示图片列表"""
+    image_folder = app.config['IMAGE_FOLDER']
+    image_names = [f for f in os.listdir(image_folder) if
+                   f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))]
+
+    page = int(request.args.get('page', 1))
+    per_page = config.get("per_page",60)  # 每页显示 60 张图片
+
+    total_pages = (len(image_names) + per_page - 1) // per_page
+
+    start_index = (page - 1) * per_page
+    end_index = start_index + per_page
+    images_on_page = image_names[start_index:end_index]
+
+    return render_template('index.html', image_names=images_on_page, page=page, total_pages=total_pages)
+
+
+@app.route('/image/<filename>')
+def serve_image(filename):
+    """返回压缩的图片文件"""
+    if filename not in image_data:
+        abort(404, description="Image not found.")
+    # 获取压缩文件名
+    compressed_filename = image_data[filename]
+    compress_folder = app.config['COMPRESSED_FOLDER']
+    if not os.path.exists(os.path.join(compress_folder, compressed_filename)):
+        abort(404, description="Compressed image not found.")
+
+    return send_from_directory(compress_folder, compressed_filename)
+
+
+@app.route('/original/<filename>')
+def serve_original(filename):
+    """返回原始的图片文件"""
+    if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+        abort(400, description="Invalid image file extension.")
+    return send_from_directory(app.config['IMAGE_FOLDER'], filename)
+
+
+def setup_scheduler():
+    """设置定时任务"""
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(check_and_compress_images, 'interval', hours=1)
+    scheduler.start()
+    check_and_compress_images()  # 应用启动时立即执行一次图片压缩检查
+    return scheduler
+
+
+
+def log_port_used_info(portstr:str):
+    if is_airplay_reciever_default_enabled_environment() is True and portstr == '5000':
+        logger.error("系统中的AirPlay Reciever（监听隔空播放服务）正在占用5000端口。请将config.yml中的port项配置为其他端口后再试。")
+        return
+    logger.error("端口"+portstr+"被占用！请检查"+portstr+"上是否已有其他TCP协议服务，或更换其他端口")
+
+def is_airplay_reciever_default_enabled_environment():
+    # 检查占用原因是否是macOS12+上的AirPlay Reciever
+    # 检测系统是否是 macOS
+    if platform.system() == "Darwin":
+        # 检测系统版本是否是 12.0 或以上
+        version = platform.mac_ver()[0]
+        major, minor, *_ = map(int, version.split("."))
+        if major >= 12:
+            return True
+    return False
+
+
+
 
 if __name__ == '__main__':
-    init_conf()
-    if len(sys.argv) >= 2:
-        #print(sys.argv)
-        if sys.argv[1] == "test":
-            print("正在测试模式下运行。将仅绑定到绑定IP列表中的第一个IP地址。")
-            run_ipv4()
-    else:
-        gunicorn_syntax=["gunicorn","-w","4"]
-        for ip_address in config.get("bind_ips",["0.0.0.0","::"]):
-            formated_ip=""    
-            try:
-                # 尝试将字符串转换为 IPv4 或 IPv6 地址
-                ip_obj = ipaddress.ip_address(ip_address)
-                
-                # 判断是 IPv4 还是 IPv6
-                if isinstance(ip_obj, ipaddress.IPv4Address):
-                    formated_ip=ip_address
-                elif isinstance(ip_obj, ipaddress.IPv6Address):
-                    formated_ip=f"[{ip_address}]"
-            except ValueError:
-                # 如果转换失败，则说明不是一个有效的 IP 地址
-                print(f"IP地址{ip_address}格式不正确")
-                continue
-            gunicorn_syntax+=["-b",f"{formated_ip}:{config.get("port","5000")}"]
-        gunicorn_syntax+=["app:app"]
-        interactive_subprocess(gunicorn_syntax)
-        # "gunicorn","-w",4,"-b","0.0.0.0:5002","app:app"
+    scheduler = setup_scheduler()
+    ip_address=config.get("bind_ip",['*'])
+    portstr=str(config.get("port",5000))
+    try:
+        serve(app, listen=ip_address+':'+portstr)
+
+    # 检查端口占用
+    except OSError as e:
+        log_port_used_info(portstr)
