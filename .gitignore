@@ -8,5 +8,5 @@ venv
 config.yml
 
 # images
-static/images/test.jpg
-static/compressed_images/test.webp
+static/images/
+static/compressed_images/
