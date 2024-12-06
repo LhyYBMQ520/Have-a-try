@@ -194,7 +194,11 @@ def check_and_compress_images():
         compress_func = partial(compress_image_in_process, compress_folder)
 
         # 提交所有的压缩任务
-        executor.map(compress_func, files_to_compress, compress_paths)
+        list(executor.map(compress_func, files_to_compress, compress_paths))
+
+    # 在所有图片压缩完成后调用刷新函数
+    refresh_images_list()
+
 
 
 def compress_image_in_process(compress_folder, file_path, compress_path):
@@ -202,11 +206,8 @@ def compress_image_in_process(compress_folder, file_path, compress_path):
     if not os.path.exists(compress_path):
         compress_image(file_path, compress_path)
 
-
-@app.before_request
-def before_request():
-    # 获取请求开始时间
-    request.start_time = datetime.now()
+def refresh_images_list():
+    """ 扫描文件夹中所有图片，并依此生成目前所有可用图片的列表"""
     # 初始化 image_data
     global image_data
     image_folder = app.config['IMAGE_FOLDER']
@@ -215,6 +216,13 @@ def before_request():
         for image_name in os.listdir(image_folder)
         if image_name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
     }
+
+
+@app.before_request
+def before_request():
+    # 获取请求开始时间
+    request.start_time = datetime.now()
+
 
 
 @app.after_request
