@@ -243,7 +243,6 @@ def log_response_info(response):
     })
     return response
 
-
 @app.route('/')
 def index():
     """主页，显示图片列表"""
@@ -251,17 +250,16 @@ def index():
     image_names = [f for f in os.listdir(image_folder) if
                    f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))]
 
-    page = int(request.args.get('page', 1))
-    per_page = config.get("per_page",60)  # 每页显示 60 张图片
+    # page = int(request.args.get('page', 1))
+    # per_page = config.get("per_page", 60)  # 每页显示 60 张图片
 
-    total_pages = (len(image_names) + per_page - 1) // per_page
+    # total_pages = (len(image_names) + per_page - 1) // per_page
 
-    start_index = (page - 1) * per_page
-    end_index = start_index + per_page
-    images_on_page = image_names[start_index:end_index]
+    # start_index = (page - 1) * per_page
+    # end_index = start_index + per_page
+    # images_on_page = image_names[start_index:end_index]
 
-    return render_template('index.html', image_names=images_on_page, page=page, total_pages=total_pages)
-
+    return render_template('index.html', image_names=image_names)  # 注释掉分页相关的参数
 
 @app.route('/image/<filename>')
 def serve_image(filename):
