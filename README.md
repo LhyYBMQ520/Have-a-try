@@ -1,5 +1,10 @@
 # L菌的简易图片库
 
+本项目正在进行改动，并转移至新仓库中，故此仓库已停用，并将在未来删除。
+项目新仓库地址：
+[前端部分](https://github.com/LhyYBMQ520/My-Image-Gallary-frontend)
+[后端部分](https://github.com/LhyYBMQ520/My-Image-Gallary-backend)
+
 ## 网站上线了！（目前网站暂时关闭）
 
 [访问链接](https://photo.ybmq.us.kg/)
